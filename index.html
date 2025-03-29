@@ -1,0 +1,429 @@
+<html>
+    <head>
+        <title>Random Flight Generator</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <h1>Random Flight Generator</h1>
+    <p style="font-weight: bold;">* All values are optional and only will be used if a value is inputted.</p>
+    <p style="font-weight: bold;">* The algorithm will try find the closest match to your parameters.</p>
+    <form>
+        <div style="margin: 0;display: flex; align-items: center; gap: 8px;">
+            <p>Indicated cruising speed in knots*:</p>
+            <input required placeholder="290" name="cruising_speed" type="number" min="0" style="width: 50px;"></input>
+            <p style="color: gray; font-style: italic;" id="actual_cruising_speed"></p>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Mean sea level altitude*:</p>
+            <input required placeholder="39000" name="msl_altitude" type="number" min="0" style="width: 63px;"></input>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Starting airport IATA:</p>
+            <input placeholder="LHR" name="starting_airport" type="text" maxlength="3" minlength="3" style="width: 44px; text-transform: uppercase;"></input>
+            <p style="color: gray; font-style: italic;" id="inputted_starting_airport"></p>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Starting airport country ISO:</p>
+            <input placeholder="US" name="starting_airport_country" type="text" maxlength="2" minlength="2" style="width: 35px; text-transform: uppercase;"></input>
+            <p style="color: gray; font-style: italic;" id="inputted_starting_airport_country"></p>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Destination airport IATA:</p>
+            <input placeholder="CDG" name="destination_airport" type="text" maxlength="3" minlength="3" style="width: 44px; text-transform: uppercase;"></input>
+            <p style="color: gray; font-style: italic;" id="inputted_destination_airport"></p>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Destination airport country ISO:</p>
+            <input placeholder="UK" name="destination_airport_country" type="text" maxlength="2" minlength="2" style="width: 35px; text-transform: uppercase;"></input>
+            <p style="color: gray; font-style: italic;" id="inputted_destination_airport_country"></p>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Estimated flight length:</p>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <input min="0" placeholder="1" name="flight_time_hours" type="number" style="width: 40px;"></input>
+                <p>hour(s) and</p>
+                <input min="0" max="59" placeholder="0" name="flight_time_minutes" type="number" style="width: 40px;"></input>
+                <p>minute(s)</p>
+            </div>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Distance between airports in nautical miles:</p>
+            <input min="0" name="flight_distance" type="number" placeholder="500" style="width: 50px;"></input>
+        </div>
+
+        <div style="margin-top: -15px;display: flex; align-items: center; gap: 8px;">
+            <p>Airport types to include:</p>
+            <div>
+                <input name="small_airports" type="checkbox" checked>small airports</input>
+                <input name="medium_airports" type="checkbox" checked>medium airports</input>
+                <input name="large_airports" type="checkbox" checked>large airports</input>
+            </div>
+        </div>
+
+        <br />
+        <button type="submit">Generate flight</button>
+        <br /><br /><br />
+        <div style="display: flex; flex-wrap: wrap; row-gap: 5px; column-gap: 5px;" id="result">
+            
+        </div>
+    </form>
+
+    <script>
+        // Cruising speed error correction.
+        const OAT = 0.02;
+
+        function toNauticalMiles(metres) {
+            return metres / 1852;
+        }
+
+        function shuffle(array) {
+            let currentIndex = array.length,  randomIndex;
+
+            // While there remain elements to shuffle.
+            while (currentIndex != 0) {
+
+                // Pick a remaining element.
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+
+                // And swap it with the current element.
+                [array[currentIndex], array[randomIndex]] = [
+                array[randomIndex], array[currentIndex]];
+            }
+
+            return array;
+        }
+
+        // Gets the distance between two airports in metres.
+        function getDistanceBetween(airport1, airport2) {
+            const lat1 = airport1._geoloc.lat;
+            const lon1 = airport1._geoloc.lng;
+            const lat2 = airport2._geoloc.lat;
+            const lon2 = airport2._geoloc.lng;
+
+            const R = 6371e3;
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            return distance;
+        }
+
+        // Gets the duration of a flight between two airports in milliseconds.
+        function getFlightDuration(metres, knots, msl) {
+            const realKnots = knots + ((msl / 1000) * (knots * OAT));
+            const mps = realKnots * 0.514444;
+            return Math.round(metres / mps * 1000);
+        }
+
+        function humanDateElapsed(dt) {
+            const ms = dt;
+            if (ms >= 3.156e+10) {
+                const div = Math.floor(ms / 3.156e+10);
+                return `${div} year${div === 1 ? '' : 's'}`;
+            } else if (ms >= 2.628e+9) {
+                const div = Math.floor(ms / 2.628e+9);
+                return `${div} month${div === 1 ? '' : 's'}`;
+            } else if (ms >= 6.048e+8) {
+                const div = Math.floor(ms / 6.048e+8);
+                return `${div} week${div === 1 ? '' : 's'}`;
+            } else if (ms >= 8.64e+7) {
+                const div = Math.floor(ms / 8.64e+7);
+                return `${div} day${div === 1 ? '' : 's'}`;
+            } else if (ms >= 3.6e+6) {
+                const div = Math.floor(ms / 3.6e+6);
+                return `${div} hour${div === 1 ? '' : 's'}`;
+            } else if (ms >= 60000) {
+                const div = Math.floor(ms / 60000);
+                return `${div} minute${div === 1 ? '' : 's'}`;
+            } else {
+                const div = Math.floor(ms / 1000);
+                return `${div} second${div === 1 ? '' : 's'}`;
+            }
+        }
+
+        let airportData;
+        let airportDataValues;
+
+        (async () => {
+            // Retrieve and parse airport data.
+            // Try cached version.
+            airportData = localStorage.getItem("airport_data");
+            
+            // Fetch from the web and cache.
+            if (!airportData) {
+                const dataRaw = await fetch("airports.json", {
+                    method: "GET"
+                }).then(r => r.json());
+
+                // Index the airports.
+                const data = {};
+                for (let i = 0; i < dataRaw.length; i++) {
+                    const item = dataRaw[i];
+                    const splitCoords = item.coordinates.split(", ");
+                    item._geoloc = { lat: parseFloat(splitCoords[1]), lng: parseFloat(splitCoords[0]) };
+                    delete item["coordinates"];
+                    data[dataRaw[i].iata_code] = dataRaw[i];
+                }
+
+                // Cache the airport data.
+                localStorage.setItem("airport_data", JSON.stringify(data));
+
+                // Set airport data.
+                airportData = data;
+            } else airportData = JSON.parse(airportData);
+            airportDataValues = Object.values(airportData);
+
+            // Before processing.
+            /*document.querySelector("form button").addEventListener("click", e => {
+                const data = Object.fromEntries(new FormData(document.querySelector("form")).entries());
+
+                // Validity checks.
+                if (data["starting_airport"] && !airport_data[data["starting_airport"]]) {
+                    document.querySelector("[name=starting_airport]").setCustomValidity("This airport does not exist.");
+                } else if (data["destination_airport"] && !airport_data[data["destination_airport"]]) {
+                    document.querySelector("[name=destination_airport]").setCustomValidity("This airport does not exist.");
+                }
+
+                document.querySelector("form").reportValidity();
+            });*/
+
+            // Show airport name when typing.
+            document.querySelector("[name=starting_airport]").addEventListener("input", e => {
+                const airport = airportData[e.target.value.toUpperCase()];
+                if (airport) document.getElementById("inputted_starting_airport").innerText = `(${airport.name})`;
+                else document.getElementById("inputted_starting_airport").innerText = "";
+            });
+
+            document.querySelector("[name=destination_airport]").addEventListener("input", e => {
+                const airport = airportData[e.target.value.toUpperCase()];
+                if (airport) document.getElementById("inputted_destination_airport").innerText = `(${airport.name})`;
+                else document.getElementById("inputted_destination_airport").innerText = "";
+            });
+
+            // Show country name when typing.
+            const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+            document.querySelector("[name=starting_airport_country]").addEventListener("input", e => {
+                const isoCountry = e.target.value;
+                if (!isoCountry || isoCountry.length !== 2) {
+                    document.getElementById("inputted_starting_airport_country").innerText = "";
+                    return;
+                }
+                let country;
+                try {
+                    country = regionNames.of(isoCountry.toUpperCase());
+                } catch(e) {};
+                if (!country || country === isoCountry.toUpperCase()) {
+                    document.getElementById("inputted_starting_airport_country").innerText = "";
+                    return;
+                }
+
+                document.getElementById("inputted_starting_airport_country").innerText = `(${country})`;
+            });
+
+            document.querySelector("[name=destination_airport_country]").addEventListener("input", e => {
+                const isoCountry = e.target.value;
+                if (!isoCountry || isoCountry.length !== 2) {
+                    document.getElementById("inputted_destination_airport_country").innerText = "";
+                    return;
+                }
+                let country;
+                try {
+                    country = regionNames.of(isoCountry.toUpperCase());
+                } catch(e) {};
+                if (!country || country === isoCountry.toUpperCase()) {
+                    document.getElementById("inputted_destination_airport_country").innerText = "";
+                    return;
+                }
+
+                document.getElementById("inputted_destination_airport_country").innerText = `(${country})`;
+            });
+
+            // Show actual cruising speed.
+            function renderActualCrusisingSpeed(e) {
+                const cruisingSpeed = parseInt(document.querySelector("[name=cruising_speed]").value);
+                const mslAltitude = parseInt(document.querySelector("[name=msl_altitude]").value);
+                if (isNaN(cruisingSpeed) || isNaN(mslAltitude)) {
+                    document.getElementById("actual_cruising_speed").innerText = "";
+                    return;
+                }
+                const actualSpeed = cruisingSpeed + ((mslAltitude / 1000) * (cruisingSpeed * OAT));
+                if (actualSpeed < 80 || actualSpeed > 800) {
+                    document.getElementById("actual_cruising_speed").innerText = "";
+                    return;
+                }
+
+                document.getElementById("actual_cruising_speed").innerText = `(actual speed: ${Math.round(actualSpeed)} knots)`;
+
+            }
+
+            document.querySelector("[name=cruising_speed]").addEventListener("input", renderActualCrusisingSpeed);
+            document.querySelector("[name=msl_altitude").addEventListener("input", renderActualCrusisingSpeed);
+
+            // Processing.
+            document.querySelector("form").addEventListener("submit", e => {
+                e.preventDefault();
+                const data = Object.fromEntries(new FormData(document.querySelector("form")).entries());
+                data.cruising_speed = parseInt(data.cruising_speed);
+                data.msl_altitude = parseInt(data.msl_altitude);
+                if (data.starting_airport) data.starting_airport = data.starting_airport.toUpperCase();
+                if (data.destination_airport) data.destination_airport = data.destination_airport.toUpperCase();
+                
+                // Perform validation.
+                if (data.starting_airport && !airportData[data.starting_airport]) {
+                    alert("The departure airport you entered does not exist.");
+                    return;
+                } else if (data.destination_airport && !airportData[data.destination_airport]) {
+                    alert("The destination airport you entered does not exist.");
+                    return;
+                } else if (data.destination_airport && data.starting_airport) {
+                    alert("You cannot enter a specific starting and departure airport at the same time.");
+                    return;
+                } else if (data.starting_airport_country) {
+                    let country;
+                    try {
+                        country = regionNames.of(data.starting_airport_country.toUpperCase());
+                    } catch(e) {};
+                    if (!country) {
+                        alert("The departure airport country you entered does not exist.");
+                        return;
+                    }
+                    data.starting_airport_country = data.starting_airport_country.toUpperCase();
+                } else if (data.destination_airport_country) {
+                    let country;
+                    try {
+                        country = regionNames.of(data.destination_airport_country.toUpperCase());
+                    } catch(e) {};
+                    if (!country) {
+                        alert("The destination airport country you entered does not exist.");
+                        return;
+                    }
+                    data.destination_airport_country = data.destination_airport_country.toUpperCase();
+                }
+
+                // Convert to metres.
+                if (data.flight_distance) data.flight_distance = data.flight_distance * 1852;
+                let eligibleAirports = [...airportDataValues];
+                shuffle(eligibleAirports);
+
+                // Filter by size first.
+                eligibleAirports = eligibleAirports.filter(a => {
+                    if (a.type === "small_airport" && data.small_airports) return true;
+                    else if (a.type === "medium_airport" && data.medium_airports) return true;
+                    else if (a.type === "large_airport" && data.large_airports) return true;
+                    else return false;
+                });
+
+                // Starting or destination airport.
+                let pivotAirport;
+                let secondaryAirport;
+                let startingAirportSelected;
+                if (data.starting_airport) {
+                    pivotAirport = airportData[data.starting_airport];
+                    startingAirportSelected = true;
+                } else if (data.destination_airport) {
+                    pivotAirport = airportData[data.destination_airport];
+                    startingAirportSelected = false;
+                } else if (data.starting_airport_country) {
+                    const filtered = airportDataValues.filter(a => regionNames.of(a.iso_country) === regionNames.of(data.starting_airport_country));
+                    pivotAirport = filtered[Math.floor(Math.random() * filtered.length)];
+                    startingAirportSelected = true;
+                } else if (data.destination_airport_country) {
+                    const filtered = airportDataValues.filter(a => regionNames.of(a.iso_country) === regionNames.of(data.destination_airport_country));
+                    pivotAirport = filtered[Math.floor(Math.random() * filtered.length)];
+                    startingAirportSelected = false;
+                } else {
+                    pivotAirport = airportDataValues[Math.floor(Math.random() * airportDataValues.length)];
+                    startingAirportSelected = true;
+                }
+
+                // Filter countries.
+                if (!startingAirportSelected && data.starting_airport_country) {
+                    eligibleAirports = eligibleAirports.filter(a => regionNames.of(a.iso_country) === regionNames.of(data.starting_airport_country));
+                }
+                if (startingAirportSelected && data.destination_airport_country) {
+                    eligibleAirports = eligibleAirports.filter(a => regionNames.of(a.iso_country) === regionNames.of(data.destination_airport_country));
+                }
+
+                // Remove pivot airport from array.
+                eligibleAirports = eligibleAirports.filter(a => a.iata_code !== pivotAirport.iata_code);
+
+                // Sort airports from closest to furthest.
+                // These fields are more of suggestions than hard limits.
+                // Pre-compute in case it is needed.
+                const timeMS = (parseInt(data.flight_time_hours || 0) * 3.6e+6) + (parseInt(data.flight_time_minutes || 0) * 60000);
+                eligibleAirports.sort((a, b) => {((parseInt(data.flight_time_hours || 0)) * 60) + ((parseInt(data.flight_time_minutes || 0)));
+                    let aScore = 0;
+                    let bScore = 0;
+
+                    if (data.flight_distance) {
+                        aScore += Math.abs(getDistanceBetween(a, pivotAirport) - data.flight_distance);
+                        bScore += Math.abs(getDistanceBetween(b, pivotAirport) - data.flight_distance);
+                    }
+
+                    if (timeMS) {
+                        aScore += Math.abs(timeMS - getFlightDuration(getDistanceBetween(a, pivotAirport), data.cruising_speed, data.msl_altitude));
+                        bScore += Math.abs(timeMS - getFlightDuration(getDistanceBetween(b, pivotAirport), data.cruising_speed, data.msl_altitude));
+                    }
+
+                    return aScore - bScore;
+                });
+
+                // Choose random secondary airport out of 20.
+                secondaryAirport = eligibleAirports.slice(0, 20);
+                secondaryAirport = secondaryAirport[Math.floor(Math.random() * secondaryAirport.length)];
+
+                const startingAirport = startingAirportSelected ? pivotAirport : secondaryAirport;
+                const destinationAirport = startingAirportSelected ? secondaryAirport : pivotAirport;
+
+                let totalTime = getFlightDuration(getDistanceBetween(startingAirport, destinationAirport), data.cruising_speed, data.msl_altitude);
+                const timeHours = Math.floor(totalTime / 3.6e+6);
+                const timeMinutes = Math.floor((totalTime % 3.6e+6) / 60000);
+                let timeText = "";
+                if (timeHours) {
+                    timeText += `${timeHours} ${timeHours === 1 ? 'hour' : 'hours'} `;
+                }
+                if (timeMinutes) {
+                    timeText += `${timeMinutes} ${timeMinutes === 1 ? 'minute' : 'minutes'}`;
+                }
+
+                document.getElementById("result").innerHTML = `
+                <div style="padding: 10px; border: solid; border-color: black; border-radius: 3px; border-width: 2px;">
+                    <p><b>Starting Airport</b></p>
+                    <ul style="margin-top: -10px; margin-left: -20px;">
+                        <li><b>Name:</b> ${startingAirport.name}</li>
+                        <li><b>Location:</b> ${regionNames.of(startingAirport.iso_country)}</li>
+                        <li><b>ICAO:</b> ${startingAirport.gps_code || '?'}</li>
+                        <li><b>IATA:</b> ${startingAirport.iata_code}</li>
+                    </ul>
+                    <p><b>Destination Airport</b></p>
+                    <ul style="margin-top: -10px; margin-left: -20px;">
+                        <li><b>Name:</b> ${destinationAirport.name}</li>
+                        <li><b>Location:</b> ${regionNames.of(destinationAirport.iso_country)}</li>
+                        <li><b>ICAO:</b> ${destinationAirport.gps_code || '?'}</li>
+                        <li><b>IATA:</b> ${destinationAirport.iata_code}</li>
+                    </ul>
+                    <p><b>Flight Details</b></p>
+                    <ul style="margin-top: -10px; margin-left: -20px;">
+                        <li><b>Distance:</b> ${toNauticalMiles(getDistanceBetween(startingAirport, destinationAirport)).toFixed(1)}nm</li>
+                        <li><b>Est. Time:</b> ${timeText}</li>
+                    </ul>
+                </div>
+                `;
+            });
+        })();
+
+    </script>
+</html>
