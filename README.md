@@ -17,6 +17,7 @@ Allows you to generate a random flight between two airports based on multiple di
 You can use it [here](https://flight-generator.speedydev.org/), alernatively if you with to self-host it, simply `git clone` this repository and use a web server / reverse proxy such as Nginx or Apache to serve the files.
 
 ## Screenshots
+![screenshot](https://github.com/user-attachments/assets/956dee5d-209d-4002-bde3-ef72997a0aac)
 
 ## Footnotes
 I created this back when me and my friend played a lot of Microsoft Flight Simulator 2020 (and FSX), and wanted a good tool that randomly generates flights based on a bunch of different parameters and requirements, when a lot of the existing tools were either inaccurate or did not allow any configuration. I figured now this would be a good addition to the open source community.
