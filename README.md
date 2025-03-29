@@ -1,7 +1,7 @@
 Note: This is a public mirror. Not much has changed however; issues & pull requests here are still accepted.
 
 # flight-generator
-Allows you to generate a random flight between two airports based on multiple different parameters including start or destination airport, time of flight and random airports, specifically designed for flight simulator players as well as real life pilots looking for a configurable random flight generation tool, with a solid accuracy (+- 15 minutes estimate vs actual time).
+Allows you to generate a random flight between two airports based on multiple different parameters including start or destination airport, time of flight and random airports, specifically designed for flight simulator players as well as real life pilots looking for a configurable random flight generation tool with a solid accuracy (+- 15 minutes estimate vs actual time).
 
 ## What can this do?
 - Generates random flights based on various parameters.
