@@ -13,6 +13,9 @@ Allows you to generate a random flight between two airports based on multiple di
 - Provides flight details including estimated time and distance.
 - Estimate durations are calculated by taking into account realistic parameters and differentiates between perceived airspeed vs actual airspeed (depending on altitude).
 
+## How do I use this?
+You can use it [here](https://flight-generator.speedydev.org/), alernatively if you with to self-host it, simply `git clone` this repository and use a web server / reverse proxy such as Nginx or Apache to serve the files.
+
 ## Screenshots
 
 ## Footnotes
