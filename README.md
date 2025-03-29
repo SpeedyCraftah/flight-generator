@@ -14,3 +14,6 @@ Allows you to generate a random flight between two airports based on multiple di
 - Estimate durations are calculated by taking into account realistic parameters and differentiates between perceived airspeed vs actual airspeed (depending on altitude).
 
 ## Screenshots
+
+## Footnotes
+I created this back when me and my friend played a lot of Microsoft Flight Simulator 2020 (and FSX), and wanted a good tool that randomly generates flights based on a bunch of different parameters and requirements, when a lot of the existing tools were either inaccurate or did not allow any configuration. I figured now this would be a good addition to the open source community.
